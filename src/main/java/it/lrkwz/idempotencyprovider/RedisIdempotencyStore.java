@@ -4,12 +4,11 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.Duration;
 
-public class RedisIdempotencyStore implements IdempotencyStore {
+class RedisIdempotencyStore implements IdempotencyStore {
 
     private final StringRedisTemplate redisTemplate;
 
-    // Explicit constructor to fix the Configuration compilation error
-    public RedisIdempotencyStore(StringRedisTemplate redisTemplate) {
+    RedisIdempotencyStore(StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
     }
 

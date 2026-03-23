@@ -4,7 +4,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class InMemoryIdempotencyStore implements IdempotencyStore {
+class InMemoryIdempotencyStore implements IdempotencyStore {
     private final Map<String, ExpirableValue> cache = new ConcurrentHashMap<>();
 
     private record ExpirableValue(String value, long expiryTime) {}

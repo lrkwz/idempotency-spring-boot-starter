@@ -25,8 +25,6 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-// This fixes the "UnnecessaryStubbingException" by allowing stubs in setUp
-// that might not be used in every single test method.
 @MockitoSettings(strictness = Strictness.LENIENT)
 class IdempotencyAspectTest {
 
@@ -48,15 +46,16 @@ class IdempotencyAspectTest {
     @Mock
     private Idempotent idempotentAnnotation;
 
+    @Spy
+    private IdempotencyKeyExtractor keyExtractor = new HeaderIdempotencyKeyExtractor();
+
     @InjectMocks
     private IdempotencyAspect aspect;
 
     @BeforeEach
     void setUp() {
-        // Mock RequestContextHolder
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
 
-        // General stubs used by most tests
         when(idempotentAnnotation.headerName()).thenReturn("Idempotency-Key");
         when(idempotentAnnotation.ttlInHours()).thenReturn(24);
         when(joinPoint.getSignature()).thenReturn(methodSignature);
@@ -82,15 +81,10 @@ class IdempotencyAspectTest {
     @Test
     void shouldReturnCachedValueOnHit() throws Throwable {
         String key = "test-key";
-
-        // FIX: Use a JSON string that matches the return type.
-        // If the return type is String.class, the JSON must be a quoted string.
         String cachedJson = "\"SuccessPayload\"";
 
         when(request.getHeader("Idempotency-Key")).thenReturn(key);
         when(idempotencyStore.get(anyString())).thenReturn(cachedJson);
-
-        // Define that the "intercepted" method returns a String
         doReturn(String.class).when(methodSignature).getReturnType();
 
         Object result = aspect.handleIdempotency(joinPoint, idempotentAnnotation);
@@ -106,8 +100,6 @@ class IdempotencyAspectTest {
 
         when(request.getHeader("Idempotency-Key")).thenReturn(key);
         when(idempotencyStore.get(anyString())).thenReturn(cachedJson);
-
-        // Define that the method returns a Map
         doReturn(Map.class).when(methodSignature).getReturnType();
 
         Object result = aspect.handleIdempotency(joinPoint, idempotentAnnotation);
@@ -117,9 +109,9 @@ class IdempotencyAspectTest {
     }
 
     @Test
-    void shouldThrowExceptionWhenProcessIsInProgress() throws Throwable {
+    void shouldThrowExceptionWhenProcessIsInProgress() {
         when(request.getHeader("Idempotency-Key")).thenReturn("key");
-        when(idempotencyStore.get(anyString())).thenReturn("IN_PROGRESS");
+        when(idempotencyStore.get(anyString())).thenReturn(IdempotencyAspect.LOCK_VALUE);
 
         assertThrows(ResponseStatusException.class, () ->
                 aspect.handleIdempotency(joinPoint, idempotentAnnotation)
@@ -133,7 +125,7 @@ class IdempotencyAspectTest {
 
         when(request.getHeader("Idempotency-Key")).thenReturn(key);
         when(idempotencyStore.get(anyString())).thenReturn(null);
-        when(idempotencyStore.setIfAbsent(anyString(), eq("IN_PROGRESS"), any())).thenReturn(true);
+        when(idempotencyStore.setIfAbsent(anyString(), eq(IdempotencyAspect.LOCK_VALUE), any())).thenReturn(true);
         when(joinPoint.proceed()).thenReturn(resultBody);
 
         Object result = aspect.handleIdempotency(joinPoint, idempotentAnnotation);
